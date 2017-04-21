@@ -35,8 +35,9 @@ import org.springframework.cassandra.core.keyspace.CreateUserTypeSpecification;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotatedElementUtils;
-import org.springframework.data.cassandra.convert.CustomConversions;
+import org.springframework.data.cassandra.convert.CassandraCustomConversions;
 import org.springframework.data.cassandra.mapping.UserTypeUtil.FrozenLiteralDataType;
+import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.mapping.PersistentEntity;
 import org.springframework.data.mapping.PropertyHandler;
 import org.springframework.data.mapping.context.AbstractMappingContext;
@@ -93,7 +94,7 @@ public class BasicCassandraMappingContext
 	 */
 	public BasicCassandraMappingContext() {
 
-		setCustomConversions(new CustomConversions(Collections.EMPTY_LIST));
+		setCustomConversions(new CassandraCustomConversions(Collections.EMPTY_LIST));
 		setSimpleTypeHolder(CassandraSimpleTypeHolder.HOLDER);
 	}
 
@@ -304,11 +305,6 @@ public class BasicCassandraMappingContext
 	@Override
 	protected CassandraPersistentProperty createPersistentProperty(Property property, CassandraPersistentEntity<?> owner,
 			SimpleTypeHolder simpleTypeHolder) {
-		return createPersistentProperty(property, owner, (CassandraSimpleTypeHolder) simpleTypeHolder);
-	}
-
-	public CassandraPersistentProperty createPersistentProperty(Property property, CassandraPersistentEntity<?> owner,
-			CassandraSimpleTypeHolder simpleTypeHolder) {
 		return new BasicCassandraPersistentProperty(property, owner, simpleTypeHolder, userTypeResolver);
 	}
 
@@ -469,12 +465,12 @@ public class BasicCassandraMappingContext
 		}
 
 		if (customConversions.hasCustomWriteTarget(property.getType())) {
-			return getDataTypeFor(customConversions.getCustomWriteTarget(property.getType()));
+			return getDataTypeFor(customConversions.getCustomWriteTarget(property.getType()).get());
 		}
 
 		if (customConversions.hasCustomWriteTarget(property.getActualType())) {
 
-			Class<?> targetType = customConversions.getCustomWriteTarget(property.getActualType());
+			Class<?> targetType = customConversions.getCustomWriteTarget(property.getActualType()).get();
 
 			if (property.isCollectionLike()) {
 
@@ -521,8 +517,10 @@ public class BasicCassandraMappingContext
 	 */
 	@Override
 	public DataType getDataType(Class<?> type) {
-		return (customConversions.hasCustomWriteTarget(type) ? getDataTypeFor(customConversions.getCustomWriteTarget(type))
-				: getDataTypeFor(type));
+
+		return customConversions.getCustomWriteTarget(type) //
+				.map(CassandraSimpleTypeHolder::getDataTypeFor) //
+				.orElseGet(() -> getDataTypeFor(type));
 	}
 
 	/* (non-Javadoc)
