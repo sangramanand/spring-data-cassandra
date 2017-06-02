@@ -85,7 +85,6 @@ public class CassandraMappingContext
 	private final Map<Class<?>, CassandraPersistentEntity<?>> entitiesByType = new HashMap<>();
 	private final Map<CqlIdentifier, Set<CassandraPersistentEntity<?>>> entitySetsByTableName = new HashMap<>();
 
-	private final Set<BasicCassandraPersistentEntity<?>> primaryKeyEntities = new HashSet<>();
 	private final Set<BasicCassandraPersistentEntity<?>> userDefinedTypes = new HashSet<>();
 	private final Set<BasicCassandraPersistentEntity<?>> tableEntities = new HashSet<>();
 
@@ -269,10 +268,6 @@ public class CassandraMappingContext
 			entities.add(entity);
 
 			if (!entity.isUserDefinedType()) {
-				if (entity.isCompositePrimaryKey()) {
-					primaryKeyEntities.add(entity);
-				}
-
 				entity.findAnnotation(Table.class).ifPresent(table -> tableEntities.add(entity));
 			}
 
@@ -303,10 +298,10 @@ public class CassandraMappingContext
 		BasicCassandraPersistentEntity<T> entity;
 
 		if (userDefinedType != null) {
-			entity = new CassandraUserTypePersistentEntity<>(typeInformation, this, verifier, userTypeResolver);
+			entity = new CassandraUserTypePersistentEntity<>(typeInformation, verifier, userTypeResolver);
 
 		} else {
-			entity = new BasicCassandraPersistentEntity<>(typeInformation, this, verifier);
+			entity = new BasicCassandraPersistentEntity<>(typeInformation, verifier);
 		}
 
 		if (context != null) {
@@ -456,10 +451,6 @@ public class CassandraMappingContext
 	private DataType getDataTypeWithUserTypeFactory(CassandraPersistentProperty property,
 			DataTypeProvider dataTypeProvider) {
 
-		if (property.isCompositePrimaryKey()) {
-			return property.getDataType();
-		}
-
 		if (property.findAnnotation(CassandraType.class).isPresent()) {
 			return property.getDataType();
 		}
@@ -478,6 +469,7 @@ public class CassandraMappingContext
 		return customConversions.getCustomWriteTarget(property.getType()) //
 				.map(CassandraSimpleTypeHolder::getDataTypeFor) //
 				.orElseGet(() -> customConversions.getCustomWriteTarget(property.getActualType()) //
+						.filter(it -> !property.isMapLike()) //
 						.map(it -> {
 
 							if (property.isCollectionLike()) {
@@ -492,9 +484,26 @@ public class CassandraMappingContext
 							}
 
 							return getDataTypeFor(it);
-						}).orElseGet(property::getDataType)
+						}).orElseGet(() -> {
 
-		);
+							if (property.isMapLike()) {
+
+								Class<?> keyType = property.getComponentType().get();
+								Class<?> valueType = property.getMapValueType().get();
+								return DataType.map(getDataType(keyType, dataTypeProvider), getDataType(valueType, dataTypeProvider));
+							}
+
+							return property.getDataType();
+						}));
+
+	}
+
+	private DataType getDataType(Class<?> type, DataTypeProvider dataTypeProvider) {
+
+		return getPersistentEntity(type) //
+				.filter(CassandraPersistentEntity::isUserDefinedType) //
+				.map(dataTypeProvider::getDataType) //
+				.orElseGet(() -> getDataType(type));
 	}
 
 	private DataType getUserDataType(CassandraPersistentProperty property, DataTypeProvider dataTypeProvider,

@@ -32,7 +32,6 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.cassandra.core.convert.CassandraCustomConversions;
 import org.springframework.data.convert.WritingConverter;
-import org.springframework.data.cql.core.CqlIdentifier;
 import org.springframework.data.cql.core.Ordering;
 import org.springframework.data.cql.core.PrimaryKeyType;
 import org.springframework.data.cql.core.keyspace.ColumnSpecification;
@@ -94,11 +93,6 @@ public class CassandraMappingContextUnitTests {
 		assertThat(idProperty).hasValueSatisfying(actual -> {
 
 			assertThat(actual.getColumnName().toCql()).isEqualTo("foo");
-
-			List<CqlIdentifier> columnNames = actual.getColumnNames();
-
-			assertThat(columnNames).hasSize(1);
-			assertThat(columnNames.get(0).toCql()).isEqualTo("foo");
 		});
 	}
 
@@ -179,7 +173,6 @@ public class CassandraMappingContextUnitTests {
 						.isTrue();
 
 		assertThat(primaryKeyClass.isCompositePrimaryKey()).isTrue();
-		assertThat(primaryKeyClass.getCompositePrimaryKeyProperties()).hasSize(2);
 
 		CassandraPersistentProperty firstname = primaryKeyClass.getRequiredPersistentProperty("firstname");
 
